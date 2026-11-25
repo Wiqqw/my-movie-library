@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>Моя коллекция</title>
+<style>
+:root{--bg:#101116;--panel:#191b24;--panel2:#242735;--line:#37394a;--text:#f5f2fa;--muted:#aaa7b8;--accent:#c2adff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#29223d 0,#101116 52%);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}main{max-width:1050px;margin:auto;padding:30px 17px 55px}h1{font-size:clamp(30px,5vw,42px);margin:0;letter-spacing:-1px}.sub{color:var(--muted);margin:5px 0 23px}
+.tabs,.filters{display:flex;gap:8px;flex-wrap:wrap}.tabs{margin-bottom:16px}.tab,.filter{border:1px solid var(--line);background:var(--panel);color:var(--text);padding:10px 15px;border-radius:12px;cursor:pointer}.tab.active,.filter.active{background:var(--accent);color:#1b1528;border-color:var(--accent);font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:17px;padding:16px;margin-bottom:15px}.add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px}.field{min-width:0;width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:11px;color:var(--text);padding:12px;font:inherit}.primary{background:var(--accent);color:#1b1528;border:0;border-radius:11px;padding:12px 17px;font-weight:750;cursor:pointer}.hint,.footer{color:var(--muted);font-size:12px}.hint{margin:9px 2px 0}.searchrow{display:flex;gap:9px;margin:14px 0 12px}.searchrow .field{flex:1}.filters{margin:0 0 13px}.stats{font-size:13px;color:var(--muted);margin:0 2px 13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:14px}.card{overflow:hidden;border:1px solid var(--line);border-radius:15px;background:var(--panel);min-width:0}.poster{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:#29243a}.placeholder{aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;text-align:center;padding:13px;background:linear-gradient(145deg,#45365f,#202a3b);font-weight:700;overflow-wrap:anywhere}.body{padding:10px}.title{font-weight:700;line-height:1.3}.meta{font-size:12px;color:var(--muted);margin-top:5px}.plot{font-size:12px;color:#d1ceda;margin-top:7px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}.actions{display:flex;align-items:center;justify-content:space-between;gap:5px;margin-top:10px}.check{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}.check input{accent-color:var(--accent);width:17px;height:17px}.small{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;padding:6px 8px;font-size:12px;cursor:pointer}.delete{color:#ffaaaa}.empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:35px;border:1px dashed var(--line);border-radius:14px}.message{font-size:13px;color:var(--muted);min-height:18px;margin:7px 2px}.footer{margin-top:20px}
+@media(max-width:600px){main{padding:22px 12px 45px}.add{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head>
+<body><main>
+<h1>Моя коллекция</h1><p class="sub">Фильмы, сериалы и мультфильмы — без дат просмотра.</p>
+<nav class="tabs"><button class="tab active" data-cat="Фильмы">Фильмы</button><button class="tab" data-cat="Сериалы">Сериалы</button><button class="tab" data-cat="Мультфильмы">Мультфильмы</button></nav>
+<section class="panel"><form class="add" id="addForm"><input class="field" id="titleInput" maxlength="120" placeholder="Введи название, например Интерстеллар" required><button class="primary" type="submit">Найти и добавить</button></form><div class="hint">Найду постер и краткую информацию автоматически. Если совпадений несколько, можно будет выбрать нужное.</div><div class="message" id="message" aria-live="polite"></div></section>
+<div class="searchrow"><input class="field" id="search" placeholder="Поиск в коллекции..."></div>
+<nav class="filters"><button class="filter active" data-status="all">Все</button><button class="filter" data-status="unwatched">Не посмотрела</button><button class="filter" data-status="watched">Посмотрела</button></nav>
+<div class="stats" id="stats"></div><section class="grid" id="grid" aria-live="polite"></section>
+<p class="footer">Список хранится локально в браузере на этом устройстве. Для автоматического поиска постеров нужен интернет. Даты просмотра не сохраняются.</p>
+</main>
+<script>
+(()=> {
+const KEY='my-watch-list-v3', cats=['Фильмы','Сериалы','Мультфильмы'];
+let data={Фильмы:[],Сериалы:[],Мультфильмы:[]},category=cats[0],status='all';
+try{const old=JSON.parse(localStorage.getItem(KEY)||'null');if(old){for(const c of cats){if(Array.isArray(old[c]))data[c]=old[c];}}else{const v2=JSON.parse(localStorage.getItem('my-watch-list-v2')||'null');if(v2){for(const c of cats){if(Array.isArray(v2[c]))data[c]=v2[c];}}}}catch(e){}
+const $=id=>document.getElementById(id), grid=$('grid');
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){$('message').textContent='Не удалось сохранить список в браузере.';}}
+function safeText(s){return typeof s==='string'?s.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim():'';}
+function kindForCat(){return category==='Сериалы'?'series':'movie';}
+function render(){
+ document.querySelectorAll('[data-cat]').forEach(b=>b.classList.toggle('active',b.dataset.cat===category));
+ document.querySelectorAll('[data-status]').forEach(b=>b.classList.toggle('active',b.dataset.status===status));
+ const all=data[category],q=$('search').value.trim().toLocaleLowerCase('ru'),watched=all.filter(x=>x.watched).length;
+ $('stats').textContent=`Всего: ${all.length} · Посмотрено: ${watched} · Не просмотрено: ${all.length-watched}`;
+ const list=all.filter(x=>(status==='all'||(status==='watched'?x.watched:!x.watched))&&x.title.toLocaleLowerCase('ru').includes(q));grid.replaceChildren();
+ if(!list.length){const e=document.createElement('div');e.className='empty';e.textContent=all.length?'Ничего не найдено в этом разделе.':'Здесь пока пусто. Добавь первое название выше.';grid.append(e);return;}
+ list.forEach(x=>{
+  const card=document.createElement('article');card.className='card';
+  if(x.poster){const im=document.createElement('img');im.className='poster';im.src=x.poster;im.alt='Постер '+x.title;im.loading='lazy';im.onerror=()=>{im.remove();const ph=document.createElement('div');ph.className='placeholder';ph.textContent=x.title;card.insertBefore(ph,card.firstChild);};card.append(im);}
+  else{const ph=document.createElement('div');ph.className='placeholder';ph.textContent=x.title;card.append(ph);}
+  const body=document.createElement('div');body.className='body';
+  const title=document.createElement('div');title.className='title';title.textContent=x.title;body.append(title);
+  const meta=document.createElement('div');meta.className='meta';meta.textContent=[x.year,x.genres].filter(Boolean).join(' · ');if(meta.textContent)body.append(meta);
+  if(x.plot){const plot=document.createElement('div');plot.className='plot';plot.textContent=x.plot;body.append(plot);}
+  const actions=document.createElement('div');actions.className='actions';const label=document.createElement('label');label.className='check';
+  const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!x.watched;cb.addEventListener('change',()=>{x.watched=cb.checked;save();render();});label.append(cb,document.createTextNode(x.watched?'Посмотрела':'Не посмотрела'));
+  const del=document.createElement('button');del.className='small delete';del.textContent='Удалить';del.addEventListener('click',()=>{if(confirm('Удалить «'+x.title+'» из коллекции?')){data[category]=data[category].filter(y=>y.id!==x.id);save();render();}});
+  actions.append(label,del);body.append(actions);card.append(body);grid.append(card);
+ });
+}
+async function searchCatalog(q,kind){
+ // Cinemeta's public Stremio metadata catalog supports title search without an API key.
+ const url=`https://v3-cinemeta.strem.io/catalog/${kind}/top/search=${encodeURIComponent(q)}.json`;
+ const r=await fetch(url);if(!r.ok)throw new Error('Сервис поиска временно недоступен');const j=await r.json();return (j.metas||[]).slice(0,8);
+}
+async function addTitle(e){
+ e.preventDefault();const q=$('titleInput').value.trim();if(!q)return;
+ if(data[category].some(x=>x.title.toLocaleLowerCase('ru')===q.toLocaleLowerCase('ru'))){$('message').textContent='Такое название уже есть в этой категории.';return;}
+ $('message').textContent='Ищу постер и информацию…';const btn=e.submitter;btn.disabled=true;btn.textContent='Ищу…';
+ try{
+  let results=await searchCatalog(q,kindForCat());
+  if(!results.length&&category==='Мультфильмы')results=await searchCatalog(q,'series');
+  if(!results.length){$('message').textContent='Не нашла совпадений. Попробуй другое написание или английское название.';return;}
+  if(results.length===1){chooseResult(results[0]);}
+  else showChoices(results,q);
+ }catch(err){$('message').textContent='Не получилось связаться с каталогом. Проверь интернет и попробуй ещё раз.';}
+ finally{btn.disabled=false;btn.textContent='Найти и добавить';}
+}
+function chooseResult(m){
+ const title=safeText(m.name)||$('titleInput').value.trim();
+ const item={id:String(Date.now())+Math.random().toString(16).slice(2),title,poster:m.poster||'',year:m.releaseInfo||'',genres:Array.isArray(m.genres)?m.genres.slice(0,3).join(', '):'',plot:safeText(m.description),watched:false,imdbId:m.imdb_id||m.id||''};
+ data[category].push(item);save();$('titleInput').value='';$('message').textContent='Добавлено: '+title;render();
+}
+function showChoices(results,q){
+ $('message').textContent='Выбери правильное совпадение:';
+ const wrap=document.createElement('div');wrap.className='grid';wrap.style.marginTop='12px';
+ results.forEach(m=>{
+  const b=document.createElement('button');b.className='card';b.style.padding='0';b.style.color='inherit';b.style.textAlign='left';b.style.cursor='pointer';
+  if(m.poster){const img=document.createElement('img');img.className='poster';img.src=m.poster;img.alt='';b.append(img);}else{const ph=document.createElement('div');ph.className='placeholder';ph.textContent='Нет постера';b.append(ph);}
+  const info=document.createElement('div');info.className='body';const t=document.createElement('div');t.className='title';t.textContent=m.name||q;info.append(t);const yr=document.createElement('div');yr.className='meta';yr.textContent=m.releaseInfo||'';info.append(yr);b.append(info);b.addEventListener('click',()=>{wrap.remove();chooseResult(m);});wrap.append(b);
+ });$('addForm').after(wrap);
+}
+document.querySelectorAll('[data-cat]').forEach(b=>b.addEventListener('click',()=>{category=b.dataset.cat;status='all';$('message').textContent='';render();}));
+document.querySelectorAll('[data-status]').forEach(b=>b.addEventListener('click',()=>{status=b.dataset.status;render();}));
+$('search').addEventListener('input',render);$('addForm').addEventListener('submit',addTitle);render();
+})();
+</script></body></html>
